@@ -2,9 +2,12 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { bibleDB } = require("../config"); // ✅ 正确导入 `bibleDB`
+const authMiddleware = require("../middleware/auth");
+
 const router = express.Router();
 
-// ✅ Register API
+
+// ✅ 用户注册 API
 router.post("/register", async (req, res) => {
     try {
         const { username, email, password } = req.body;
@@ -12,17 +15,29 @@ router.post("/register", async (req, res) => {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
-        // **Check if the email exists**
-        const [existingUsers] = await bibleDB.execute("SELECT * FROM users WHERE email = ?", [email]);
-        if (existingUsers.length > 0) {
-            return res.status(400).json({ error: "Email is already registered" });
-        }
+\
+ // **检查 username 是否已注册**
+const [existingUsernames] = await bibleDB.execute("SELECT * FROM users WHERE username = ?", [username]);
+if (existingUsernames.length > 0) {
+    return res.status(400).json({ error: "Username is already taken" });
+}
 
-        // **encryption**
+// **检查 email 是否已注册**
+const [existingEmails] = await bibleDB.execute("SELECT * FROM users WHERE email = ?", [email]);
+if (existingEmails.length > 0) {
+    return res.status(400).json({ error: "Email is already registered" });
+}
+
+        // **加密密码**
         const hashedPassword = await bcrypt.hash(password, 10);
+
+        // **默认头像 & 语言**
+        const defaultAvatar = "../media/default-avatar.png"; // 替换成真实 URL
+        const defaultLanguage = "t_kjv"; // 默认英文
+
         await bibleDB.execute(
-            "INSERT INTO users (username, email, password) VALUES (?, ?, ?)",
-            [username, email, hashedPassword]
+            "INSERT INTO users (username, email, password, avatar, language) VALUES (?, ?, ?, ?, ?)",
+            [username, email, hashedPassword, defaultAvatar, defaultLanguage]
         );
 
         res.json({ message: "User registered successfully" });
@@ -32,7 +47,7 @@ router.post("/register", async (req, res) => {
     }
 });
 
-// ✅ USER LOGIN API
+// ✅ 用户登录 API
 router.post("/login", async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -40,7 +55,7 @@ router.post("/login", async (req, res) => {
             return res.status(400).json({ error: "Missing email or password" });
         }
 
-        // **User inquiry**
+        // **查询用户**
         const [rows] = await bibleDB.execute("SELECT * FROM users WHERE email = ?", [email]);
         if (rows.length === 0) {
             return res.status(400).json({ error: "User does not exist" });
@@ -60,28 +75,62 @@ router.post("/login", async (req, res) => {
             { expiresIn: "1h" } // 1 小时后过期
         );
 
-        res.json({ token });
+        // **返回 token & 用户信息**
+        res.json({
+            token,
+            user: {
+                id: user.id,
+                username: user.username,
+                email: user.email,
+                avatar: user.avatar,
+                language: user.language
+            }
+        });
     } catch (error) {
         console.error("❌ Login error:", error);
         res.status(500).json({ error: "Server error" });
     }
 });
 
-// ✅ 认证中间件（JWT 验证）
-const authMiddleware = (req, res, next) => {
-    const token = req.header("Authorization")?.split(" ")[1]; // 解析 Bearer Token
-    if (!token) {
-        return res.status(401).json({ error: "Unauthorized: No token provided" });
-    }
-
+// ✅ 获取当前用户信息 API
+router.get("/me", authMiddleware, async (req, res) => {
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        req.user = decoded; // 存储解码后的用户数据
-        next();
+        const [rows] = await bibleDB.execute(
+            "SELECT id, username, email, avatar, language FROM users WHERE id = ?",
+            [req.user.id]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ error: "User not found" });
+        }
+
+        res.json(rows[0]);
     } catch (error) {
-        return res.status(401).json({ error: "Invalid token" });
+        console.error("❌ Error fetching user info:", error);
+        res.status(500).json({ error: "Server error" });
     }
-};
+});
+
+// ✅ 更新用户信息 API（头像 & 语言）
+router.post("/update", authMiddleware, async (req, res) => {
+    try {
+        const { username, avatar, language } = req.body;
+        if (!username || !avatar || !language) {
+            return res.status(400).json({ error: "Missing required fields" });
+        }
+
+        await bibleDB.execute(
+            "UPDATE users SET username = ?, avatar = ?, language = ? WHERE id = ?",
+            [username, avatar, language, req.user.id]
+        );
+
+        res.json({ message: "Profile updated successfully" });
+    } catch (error) {
+        console.error("❌ Error updating user:", error);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
 
 // ✅ 受保护 API（需要 JWT 认证）
 router.get("/protected", authMiddleware, (req, res) => {
@@ -92,4 +141,5 @@ router.get("/protected", authMiddleware, (req, res) => {
 });
 
 module.exports = router;
+
 

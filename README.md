@@ -314,18 +314,9 @@ pm2 restart bible-api
 ---
 
 ## **8️⃣ Import MySQL Database**
-### **Step 1: Export the Database (From Local Machine)**
-```sh
-mysqldump -u root -p bible > bible.sql
-```
-This will create a `bible.sql` file in your local directory.
 
-### **Step 2: Upload `bible.sql` to AWS**
-```sh
-scp -i "/path-to-your-key/bible-project-key.pem" "/path-to-your-db/bible.sql" ubuntu@your-server-ip:/home/ubuntu/
-```
 
-### **Step 3: Import Database on AWS Server**
+### **Step 1: Import Database on AWS Server**
 Log in to your server:
 ```sh
 ssh -i "/path-to-your-key/bible-project-key.pem" ubuntu@your-server-ip
@@ -338,12 +329,12 @@ EXIT;
 mysql -u root -p bible < /home/ubuntu/bible.sql
 ```
 
-### **Step 4: Restart the API**
+### **Step 2: Restart the API**
 ```sh
 pm2 restart bible-api
 ```
 
-### **Step 5: Test the API**
+### **Step 3: Test the API**
 ```sh
 curl "http://localhost:5000/api/bible?book=2&chapter=10&v=t_cn"
 ```

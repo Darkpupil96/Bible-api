@@ -23,7 +23,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/friends", friendRoutes);
 
 
-// 让 `/media` 目录可以通过 `http://localhost:5000/media/` 访问
+// 让 `/media` 目录可以通过 `https://withelim.com/media/` 访问
 app.use("/media", express.static(path.join(__dirname, "src/media"))); 
 // 服务器监听端口
 const PORT = process.env.PORT || 5000;

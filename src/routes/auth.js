@@ -15,7 +15,7 @@ router.post("/register", async (req, res) => {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
-\
+
  // **检查 username 是否已注册**
 const [existingUsernames] = await bibleDB.execute("SELECT * FROM users WHERE username = ?", [username]);
 if (existingUsernames.length > 0) {

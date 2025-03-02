@@ -297,6 +297,7 @@ sudo ufw reload
 ### **Step 3: Update `app.js` to Listen on All IPs**
 On the **server**, edit `app.js`:
 ```sh
+cd src
 nano app.js
 ```
 Ensure this line is present:
@@ -418,6 +419,14 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
+
+    location /media/ {
+    root /home/ubuntu/bible-backend/src/;
+    autoindex on;
+    access_log off;
+    expires max;
+}
+
 }
 ```
 Save and restart Nginx:

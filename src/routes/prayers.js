@@ -313,6 +313,56 @@ router.get("/:prayerId/comments", async (req, res) => {
     }
 });
 
+// ✅ 获取所有公开祷文（无需身份验证）
+router.get("/public", async (req, res) => {
+    try {
+      const sql = `
+        SELECT p.id, p.title, p.content, p.is_private, p.created_at, u.username,
+               pb.version, pb.b, pb.c, pb.v, b.t AS bibleText
+        FROM prayers p
+        JOIN users u ON p.userId = u.id
+        LEFT JOIN prayer_bible pb ON p.id = pb.prayerId
+        LEFT JOIN (
+          SELECT 't_kjv' AS version, b, c, v, t FROM t_kjv
+          UNION ALL
+          SELECT 't_cn', b, c, v, t FROM t_cn
+        ) b ON pb.version = b.version AND pb.b = b.b AND pb.c = b.c AND pb.v = b.v
+        WHERE p.is_private = FALSE
+        ORDER BY p.created_at DESC`;
+        
+      const [rows] = await bibleDB.execute(sql);
+      
+      // 整理数据，将相同祷文的关联经文合并到一个数组中
+      const prayers = {};
+      rows.forEach(row => {
+        if (!prayers[row.id]) {
+          prayers[row.id] = {
+            id: row.id,
+            title: row.title,
+            content: row.content,
+            is_private: Boolean(row.is_private),
+            created_at: row.created_at,
+            username: row.username,
+            verses: []
+          };
+        }
+        if (row.bibleText) {
+          prayers[row.id].verses.push({
+            version: row.version,
+            b: row.b,
+            c: row.c,
+            v: row.v,
+            text: row.bibleText
+          });
+        }
+      });
+      
+      res.json({ prayers: Object.values(prayers) });
+    } catch (error) {
+      console.error("❌ Error fetching public prayers:", error);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
 
 
 module.exports = router;

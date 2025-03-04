@@ -32,6 +32,65 @@ router.get("/", async (req, res) => {
     }
 });
 
+// -------------------------
+// Chinese Verse Search API
+// -------------------------
+/**
+ * GET /api/Chinese/search?word=xxx
+ * Search for verses in the Chinese Bible table (t_cn) that contain the given word.
+ */
+router.get("/Chinese/search", async (req, res) => {
+    try {
+      const { word } = req.query;
+      if (!word) {
+        return res.status(400).json({ error: "Missing word parameter" });
+      }
+  
+      const sql = `
+        SELECT 't_cn' AS version, b, c, v, t
+        FROM t_cn
+        WHERE t LIKE ?
+        ORDER BY b, c, v
+      `;
+      const searchTerm = `%${word}%`;
+      const [rows] = await bibleDB.execute(sql, [searchTerm]);
+      res.json({ verses: rows });
+    } catch (error) {
+      console.error("Error searching Chinese verses:", error);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+  
+  // -------------------------
+  // English Verse Search API
+  // -------------------------
+  /**
+   * GET /api/English/search?word=xxx
+   * Search for verses in the English Bible table (t_kjv) that contain the given word.
+   */
+  router.get("/English/search", async (req, res) => {
+    try {
+      const { word } = req.query;
+      if (!word) {
+        return res.status(400).json({ error: "Missing word parameter" });
+      }
+  
+      const sql = `
+        SELECT 't_kjv' AS version, b, c, v, t
+        FROM t_kjv
+        WHERE t LIKE ?
+        ORDER BY b, c, v
+      `;
+      const searchTerm = `%${word}%`;
+      const [rows] = await bibleDB.execute(sql, [searchTerm]);
+      res.json({ verses: rows });
+    } catch (error) {
+      console.error("Error searching English verses:", error);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+  
+
 module.exports = router;
 
 

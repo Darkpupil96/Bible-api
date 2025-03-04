@@ -140,6 +140,38 @@ router.get("/protected", authMiddleware, (req, res) => {
     });
 });
 
+
+//✅ 获取指定用户的公开信息（无需认证）
+// 返回用户基础信息和ta公开的祷文
+router.get("/public/:id", async (req, res) => {
+  try {
+    const userId = req.params.id;
+    // 查询用户的基本信息
+    const [userRows] = await bibleDB.execute(
+      "SELECT id, username, email, avatar, language FROM users WHERE id = ?",
+      [userId]
+    );
+    if (userRows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    const userInfo = userRows[0];
+
+    // 查询该用户所有公开的祷文（假设 is_private 为 0 表示公开）
+    const [prayersRows] = await bibleDB.execute(
+      "SELECT id, title, content, created_at FROM prayers WHERE userId = ? AND is_private = 0",
+      [userId]
+    );
+
+    res.json({
+      user: userInfo,
+      publicPrayers: prayersRows
+    });
+  } catch (error) {
+    console.error("Error fetching public user info:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 module.exports = router;
 
 

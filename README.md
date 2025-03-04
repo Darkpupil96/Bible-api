@@ -103,9 +103,13 @@ Now your database is ready for use! 🚀
 
 ---
 
-## 📜 API Documentation
+## 📜 **API Documentation**
 
-### 🧑‍💻 **User Authentication**
+This API documentation provides a structured overview of all available endpoints for user authentication, Bible verses, prayers, friends, and interactions (likes/comments).
+
+---
+
+## 🧑‍💻 **User Authentication**
 #### **1. Register**
 - **Endpoint:** `POST /api/auth/register`
 - **Request:**
@@ -123,6 +127,8 @@ Now your database is ready for use! 🚀
   }
   ```
 
+---
+
 #### **2. Login**
 - **Endpoint:** `POST /api/auth/login`
 - **Request:**
@@ -139,8 +145,10 @@ Now your database is ready for use! 🚀
   }
   ```
 
-#### **3. Protected Route (Requires JWT)**
-- **Endpoint:** `GET /api/auth/protected`
+---
+
+#### **3. Get Current User Info**
+- **Endpoint:** `GET /api/auth/me`
 - **Headers:**
   ```
   Authorization: Bearer your_jwt_token
@@ -148,18 +156,83 @@ Now your database is ready for use! 🚀
 - **Response:**
   ```json
   {
-    "message": "You have accessed a protected route!",
-    "user": {
-      "id": 1,
-      "email": "john@example.com"
-    }
+    "id": 1,
+    "username": "john_doe",
+    "email": "john@example.com",
+    "avatar": "http://localhost:5000/media/avatar.png",
+    "language": "t_cn"
   }
   ```
 
 ---
 
-### 📖 **Bible Verses**
-#### **4. Get Bible Verses**
+#### **4. Update User Profile**
+- **Endpoint:** `POST /api/auth/update`
+- **Headers:**
+  ```
+  Authorization: Bearer your_jwt_token
+  ```
+- **Request Body:**
+  ```json
+  {
+    "username": "JohnUpdated",
+    "avatar": "http://localhost:5000/media/new-avatar.png",
+    "language": "t_cn"
+  }
+  ```
+- **Response:**
+  ```json
+  {
+    "message": "Profile updated successfully"
+  }
+  ```
+
+---
+
+### **5. Get Public User Information **
+Endpoint: GET /api/auth/public/:id
+URL Parameters:
+:id (required) – The ID of the user.
+Description:
+Retrieve the specified user's basic information along with all their public prayers (prayers where is_private is false). This endpoint does not require authentication.
+Example Request:
+curl -X GET http://localhost:5000/api/auth/public/1
+Example Response:
+json
+
+{
+  "user": {
+    "id": 1,
+    "username": "john_doe",
+    "email": "john@example.com",
+    "avatar": "http://localhost:5000/media/avatar.png",
+    "language": "t_cn"
+  },
+  "publicPrayers": [
+    {
+      "id": 1,
+      "title": "My Prayer",
+      "content": "Dear God, bless my family.",
+      "is_private": false,
+      "created_at": "2025-03-02T12:34:56.000Z",
+      "username": "john_doe",
+      "verses": [
+        {
+          "version": "t_kjv",
+          "b": 1,
+          "c": 1,
+          "v": 1,
+          "text": "In the beginning God created the heaven and the earth."
+        }
+      ]
+    }
+  ]
+}
+Notes:
+This endpoint only exposes public details. Private prayers are not included.
+
+## 📖 **Bible Verses**
+#### **6. Get Bible Verses**
 - **Endpoint:** `GET /api/bible`
 - **Query Parameters:**  
   - `book` (required) - Book number  
@@ -180,8 +253,325 @@ Now your database is ready for use! 🚀
     ]
   }
   ```
+#### **7. Search Bible Verses**
+---
+Chinese Verse Search
+Endpoint: GET /api/bible/Chinese/search?word=xxx
+Description:
+Retrieves Bible verses from the Chinese Bible table (t_cn) that contain the specified keyword. The search uses a fuzzy match (SQL LIKE operator) to find verses where the text includes the search term.
+Query Parameters:
+word (required): The keyword to search for.
+Example Request:
+
+curl -X GET "http://localhost:5000/api/bible/Chinese/search?word=挪亚"
+Example Response:
+```json
+
+{
+  "verses": [
+    {
+      "version": "t_cn",
+      "b": 1,
+      "c": 1,
+      "v": 1,
+      "t": "在起初，神创造天地..."
+    },
+    {
+      "version": "t_cn",
+      "b": 1,
+      "c": 1,
+      "v": 2,
+      "t": "地是空虚混沌..."
+    }
+    // ... additional matching verses
+  ]
+}
+Notes:
+The keyword is automatically wrapped with % on both sides (i.e., %keyword%) to enable fuzzy matching. Ensure your database is configured with UTF-8 encoding to support Chinese characters.
+
+English Verse Search
+Endpoint: GET /api/bible/English/search?word=xxx
+Description:
+Retrieves Bible verses from the English Bible table (t_kjv) that contain the specified keyword. The search uses a fuzzy match (SQL LIKE operator) to find verses where the text includes the search term.
+Query Parameters:
+word (required): The keyword to search for.
+Example Request:
+curl -X GET "http://localhost:5000/api/bible/English/search?word=love"
+Example Response:
+```json
+
+{
+  "verses": [
+    {
+      "version": "t_kjv",
+      "b": 1,
+      "c": 1,
+      "v": 1,
+      "t": "In the beginning, God created the heaven and the earth."
+    },
+    {
+      "version": "t_kjv",
+      "b": 1,
+      "c": 1,
+      "v": 2,
+      "t": "And the earth was without form, and void..."
+    }
+    // ... additional matching verses
+  ]
+}
+Notes:
+The keyword is wrapped with % for fuzzy matching. Make sure your database is set to use UTF-8 encoding so that special characters are handled correctly.
 
 ---
+
+## 🙏 **Prayers**
+#### **8. Create a Prayer**
+
+- **Endpoint:** `POST /api/prayers`
+- **Headers:**
+  ```
+  Authorization: Bearer your_jwt_token
+  ```
+- **Request:**
+  ```json
+  {
+    "title": "My Daily Prayer",
+    "content": "Lord, give me strength.",
+    "is_private": false,
+    "verses": [
+      { "version": "t_kjv", "b": 1, "c": 1, "v": 1 }
+    ]
+  }
+  ```
+- **Response:**
+  ```json
+  {
+    "message": "Prayer submitted",
+    "prayerId": 1
+  }
+  ```
+
+---
+
+#### **9. Get All Public Prayers**
+- **Endpoint:** `GET /api/prayers`
+- **Response:**
+  ```json
+  {
+    "prayers": [
+      {
+        "id": 1,
+        "title": "Morning Prayer",
+        "content": "Lord, guide me.",
+        "is_private": false,
+        "created_at": "2024-02-27T12:00:00",
+        "username": "John"
+      }
+    ]
+  }
+  ```
+
+---
+
+#### **10. Get User’s Prayers**
+- **Endpoint:** `GET /api/prayers/mine`
+- **Headers:**
+  ```
+  Authorization: Bearer your_jwt_token
+  ```
+- **Response:** (Same format as above)
+
+---
+
+#### **11. Get a Specific User’s Public Prayers**
+- **Endpoint:** `GET /api/prayers/user/{userId}`
+- **Example:** `GET /api/prayers/user/2`
+- **Response:**
+  ```json
+  {
+    "prayers": [
+      {
+        "id": 2,
+        "title": "Evening Prayer",
+        "content": "Give me peace.",
+        "is_private": false,
+        "created_at": "2024-02-27T14:00:00",
+        "username": "AnotherUser"
+      }
+    ]
+  }
+  ```
+
+---
+
+## 🤝 **Friendship System**
+#### **12. Send a Friend Request**
+- **Endpoint:** `POST /api/friends/add`
+- **Headers:**
+  ```
+  Authorization: Bearer your_jwt_token
+  ```
+- **Request Body:**
+  ```json
+  {
+    "friend_id": 2
+  }
+  ```
+- **Response:**
+  ```json
+  {
+    "message": "Friend request sent!"
+  }
+  ```
+
+---
+
+#### **13. Get Friend Requests**
+- **Endpoint:** `GET /api/friends/requests`
+- **Headers:**  
+  ```
+  Authorization: Bearer your_jwt_token
+  ```
+- **Response:**
+  ```json
+  {
+    "requests": [
+      {
+        "id": 1,
+        "from": "JohnDoe",
+        "status": "pending"
+      }
+    ]
+  }
+  ```
+
+---
+
+#### **14. Get Friend List**
+- **Endpoint:** `GET /api/friends`
+- **Response:**
+  ```json
+  {
+    "friends": [
+      {
+        "id": 2,
+        "username": "JaneDoe",
+        "avatar": "http://localhost:5000/media/avatar2.png"
+      }
+    ]
+  }
+  ```
+
+---
+
+## ❤️ **Likes & Comments**
+#### **15. Like a Prayer**
+- **Endpoint:** `POST /api/prayers/{prayerId}/like`
+- **Example:** `POST /api/prayers/5/like`
+- **Response:**
+  ```json
+  {
+    "message": "Prayer liked successfully!"
+  }
+  ```
+
+---
+
+#### **16. Unlike a Prayer**
+- **Endpoint:** `DELETE /api/prayers/{prayerId}/unlike`
+- **Example:** `DELETE /api/prayers/5/unlike`
+- **Response:**
+  ```json
+  {
+    "message": "Prayer unliked successfully!"
+  }
+  ```
+
+---
+
+#### **17. Get Prayer Likes Count**
+- **Endpoint:** `GET /api/prayers/{prayerId}/likes`
+- **Example:** `GET /api/prayers/5/likes`
+- **Response:**
+  ```json
+  {
+    "likeCount": 10
+  }
+  ```
+
+---
+
+#### **18. Add a Comment on a Prayer**
+- **Endpoint:** `POST /api/prayers/{prayerId}/comment`
+- **Request:**
+  ```json
+  {
+    "content": "Beautiful prayer!"
+  }
+  ```
+- **Response:**
+  ```json
+  {
+    "message": "Comment added successfully!"
+  }
+  ```
+
+---
+
+#### **19. Get Comments for a Prayer**
+- **Endpoint:** `GET /api/prayers/{prayerId}/comments`
+- **Example:** `GET /api/prayers/5/comments`
+- **Response:**
+  ```json
+  {
+    "comments": [
+      {
+        "id": 1,
+        "content": "Beautiful prayer!",
+        "created_at": "2024-02-27T14:10:00",
+        "username": "JaneDoe"
+      }
+    ]
+  }
+  ```
+
+---
+#### **20.Get All Public Prayers**
+Endpoint: GET /api/prayers/public
+Description:
+Retrieve all public prayers from the database along with any associated Bible verse information. No authentication is required.
+Example Request:
+sh
+复制
+curl -X GET http://localhost:5000/api/prayers/public
+Example Response:
+json
+复制
+{
+  "prayers": [
+    {
+      "id": 1,
+      "title": "My Prayer",
+      "content": "Dear God, bless my family.",
+      "is_private": false,
+      "created_at": "2025-03-02T12:34:56.000Z",
+      "username": "john_doe",
+      "verses": [
+        {
+          "version": "t_kjv",
+          "b": 1,
+          "c": 1,
+          "v": 1,
+          "text": "In the beginning God created the heaven and the earth."
+        }
+      ]
+    }
+    // ... additional public prayers
+  ]
+}
+Notes:
+Only prayers with is_private = false are returned by this endpoint.
+
 
 ## ▶️ Running the Server
 ```sh

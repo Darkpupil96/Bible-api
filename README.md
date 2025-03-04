@@ -1,9 +1,4 @@
 
-下面是更新后的 README 内容，已添加账户设置相关 API 文档，包括用户更新信息、上传头像（上传后自动设置为自己的头像）、更新阅读记录等说明。你可以直接将下面的内容更新到项目根目录下的 README.md 文件中，然后上传到 AWS 服务器上使用：
-
----
-
-```markdown
 # 📖 Bible API - Bible Study & Prayer App Backend
 
 This backend system powers a **Bible study and prayer application**, allowing users to:

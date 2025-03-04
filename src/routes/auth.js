@@ -3,8 +3,10 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { bibleDB } = require("../config"); // ✅ 正确导入 `bibleDB`
 const authMiddleware = require("../middleware/auth");
-
+const multer = require("multer");
 const router = express.Router();
+const path = require("path");
+
 
 
 // ✅ 用户注册 API
@@ -96,7 +98,7 @@ router.post("/login", async (req, res) => {
 router.get("/me", authMiddleware, async (req, res) => {
     try {
         const [rows] = await bibleDB.execute(
-            "SELECT id, username, email, avatar, language FROM users WHERE id = ?",
+            "SELECT id, username, email, avatar, language, reading_book, reading_chapter  FROM users WHERE id = ?",
             [req.user.id]
         );
 
@@ -115,22 +117,111 @@ router.get("/me", authMiddleware, async (req, res) => {
 router.post("/update", authMiddleware, async (req, res) => {
     try {
         const { username, avatar, language } = req.body;
-        if (!username || !avatar || !language) {
-            return res.status(400).json({ error: "Missing required fields" });
+
+        // 如果没有提供任何要更新的字段，返回错误
+        if (!username && !avatar && !language) {
+            return res.status(400).json({ error: "At least one field is required for update" });
         }
 
-        await bibleDB.execute(
-            "UPDATE users SET username = ?, avatar = ?, language = ? WHERE id = ?",
-            [username, avatar, language, req.user.id]
+        let query = "UPDATE users SET ";
+        let params = [];
+
+        if (username) {
+            query += "username = ?, ";
+            params.push(username);
+        }
+        if (avatar) {
+            query += "avatar = ?, ";
+            params.push(avatar);
+        }
+        if (language) {
+            query += "language = ?, ";
+            params.push(language);
+        }
+
+        // 移除 SQL 末尾的 `,` 并加上 `WHERE`
+        query = query.slice(0, -2) + " WHERE id = ?";
+        params.push(req.user.id);
+
+        await bibleDB.execute(query, params);
+
+        // 获取更新后的用户信息
+        const [updatedUser] = await bibleDB.execute(
+            "SELECT id, username, email, avatar, language FROM users WHERE id = ?",
+            [req.user.id]
         );
 
-        res.json({ message: "Profile updated successfully" });
+        res.json({ message: "Profile updated successfully", user: updatedUser[0] });
+
     } catch (error) {
         console.error("❌ Error updating user:", error);
         res.status(500).json({ error: "Server error" });
     }
 });
 
+// ✅ 设置 multer 存储配置（上传到 `bible-backend/src/media`）
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, path.join(__dirname, "../media/"));
+    },
+    filename: function (req, file, cb) {
+        cb(null, `avatar_${req.user.id}${path.extname(file.originalname)}`);
+    }
+});
+const upload = multer({ storage: storage });
+
+// ✅ 头像上传 + 自动更新用户头像
+router.post("/upload-avatar", authMiddleware, upload.single("avatar"), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: "No file uploaded" });
+        }
+
+        // 生成头像 URL
+        const avatarUrl = `https://withelim.com/media/${req.file.filename}`;
+
+        // 更新数据库，自动设置为当前用户的头像
+        await bibleDB.execute("UPDATE users SET avatar = ? WHERE id = ?", [avatarUrl, req.user.id]);
+
+        // 获取更新后的用户信息
+        const [updatedUser] = await bibleDB.execute(
+            "SELECT id, username, email, avatar, language FROM users WHERE id = ?",
+            [req.user.id]
+        );
+
+        res.json({
+            message: "Avatar uploaded and updated successfully",
+            user: updatedUser[0]
+        });
+
+    } catch (error) {
+        console.error("❌ Error uploading avatar:", error);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+// ✅ 更新用户当前阅读的书 & 章节
+router.post("/update-reading", authMiddleware, async (req, res) => {
+    try {
+        const { reading_book, reading_chapter } = req.body;
+
+        // 确保提供了 `reading_book` 和 `reading_chapter`
+        if (!reading_book || !reading_chapter) {
+            return res.status(400).json({ error: "Book and chapter are required" });
+        }
+
+        // 更新用户的阅读进度
+        await bibleDB.execute(
+            "UPDATE users SET reading_book = ?, reading_chapter = ? WHERE id = ?",
+            [reading_book, reading_chapter, req.user.id]
+        );
+
+        res.json({ message: "Reading progress updated successfully", reading_book, reading_chapter });
+    } catch (error) {
+        console.error("❌ Error updating reading progress:", error);
+        res.status(500).json({ error: "Server error" });
+    }
+});
 
 // ✅ 受保护 API（需要 JWT 认证）
 router.get("/protected", authMiddleware, (req, res) => {

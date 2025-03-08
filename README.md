@@ -94,238 +94,236 @@ Follow the standard data import process.
 
 ## 📜 API Documentation
 
-🧑‍💻 User Authentication & Account Management
+# 📖 Bible API - Bible Study & Prayer App Backend
 
-1️⃣ Register
+This backend system powers a **Bible study and prayer application**, allowing users to:
+- **Access and search Bible verses**
+- **Create and manage prayers**
+- **Link prayers to Bible verses**
+- **Authenticate users securely** using JWT
+- **Manage friendships (send requests, accept/reject, view friends list)**
+- **Update account settings**, including profile information, avatar upload, email, language, and password
 
-Endpoint: POST /api/auth/register
+Built with **Express.js**, **MySQL**, and **JWT authentication**, hosted on **AWS Lightsail** with **Nginx reverse proxy**.
 
-Request:
+---
 
-{
-  "username": "john_doe",
-  "email": "john@example.com",
-  "password": "securepassword"
-}
+## 📜 API Documentation
 
-Response:
+### 🧑‍💻 User Authentication & Account Management
 
-{
-  "message": "User registered successfully"
-}
+#### 1️⃣ Register
+- **Endpoint:** `POST /api/auth/register`
+- **Request:**
+  ```json
+  {
+    "username": "john_doe",
+    "email": "john@example.com",
+    "password": "securepassword"
+  }
+  ```
+- **Response:**
+  ```json
+  {
+    "message": "User registered successfully"
+  }
+  ```
 
-2️⃣ Login
+#### 2️⃣ Login
+- **Endpoint:** `POST /api/auth/login`
+- **Request:**
+  ```json
+  {
+    "email": "john@example.com",
+    "password": "securepassword"
+  }
+  ```
+- **Response:**
+  ```json
+  {
+    "token": "your_jwt_token",
+    "user": {
+      "id": 1,
+      "username": "john_doe",
+      "email": "john@example.com",
+      "avatar": "https://withelim.com/media/avatar.png",
+      "language": "t_cn"
+    }
+  }
+  ```
 
-Endpoint: POST /api/auth/login
-
-Request:
-
-{
-  "email": "john@example.com",
-  "password": "securepassword"
-}
-
-Response:
-
-{
-  "token": "your_jwt_token",
-  "user": {
+#### 3️⃣ Get Current User Info
+- **Endpoint:** `GET /api/auth/me`
+- **Headers:**
+  ```
+  Authorization: Bearer your_jwt_token
+  ```
+- **Response:**
+  ```json
+  {
     "id": 1,
     "username": "john_doe",
     "email": "john@example.com",
     "avatar": "https://withelim.com/media/avatar.png",
-    "language": "t_cn"
+    "language": "t_cn",
+    "reading_book": 1,
+    "reading_chapter": 3
   }
-}
+  ```
 
-3️⃣ Get Current User Info
-
-Endpoint: GET /api/auth/me
-
-Headers:
-
-Authorization: Bearer your_jwt_token
-
-Response:
-
-{
-  "id": 1,
-  "username": "john_doe",
-  "email": "john@example.com",
-  "avatar": "https://withelim.com/media/avatar.png",
-  "language": "t_cn",
-  "reading_book": 1,
-  "reading_chapter": 3
-}
-
-4️⃣ Update Profile (Username, Email, Password, Avatar & Language)
-
-Endpoint: POST /api/auth/update
-
-Request:
-
-{
-  "username": "JohnUpdated",
-  "email": "newemail@example.com",
-  "avatar": "https://withelim.com/media/new-avatar.png",
-  "language": "t_cn",
-  "oldPassword": "oldpassword",
-  "newPassword": "newsecurepassword"
-}
-
-Response:
-
-{
-  "message": "Profile updated successfully",
-  "user": {
-    "id": 1,
+#### 4️⃣ Update Profile (Username, Email, Password, Avatar & Language)
+- **Endpoint:** `POST /api/auth/update`
+- **Request:**
+  ```json
+  {
     "username": "JohnUpdated",
     "email": "newemail@example.com",
     "avatar": "https://withelim.com/media/new-avatar.png",
-    "language": "t_cn"
+    "language": "t_cn",
+    "oldPassword": "oldpassword",
+    "newPassword": "newsecurepassword"
   }
-}
-
-Notes:
-
-If updating the email, the new email must not be already registered.
-
-If updating the password, oldPassword is required to verify the change.
-
-5️⃣ Upload Avatar
-
-Endpoint: POST /api/auth/upload-avatar
-
-Response:
-
-{
-  "message": "Avatar uploaded and updated successfully",
-  "user": {
-    "id": 1,
-    "avatar": "https://withelim.com/media/avatar_1.jpg"
+  ```
+- **Response:**
+  ```json
+  {
+    "message": "Profile updated successfully",
+    "user": {
+      "id": 1,
+      "username": "JohnUpdated",
+      "email": "newemail@example.com",
+      "avatar": "https://withelim.com/media/new-avatar.png",
+      "language": "t_cn"
+    }
   }
-}
+  ```
 
-6️⃣ Get Public Profile
-
-Endpoint: GET /api/auth/public/:id
-
-Response:
-
-{
-  "user": {
-    "id": 2,
-    "username": "jane_doe",
-    "email": "jane@example.com",
-    "avatar": "https://withelim.com/media/jane-avatar.png",
-    "language": "t_cn"
-  },
-  "publicPrayers": [
-    {
+#### 5️⃣ Upload Avatar
+- **Endpoint:** `POST /api/auth/upload-avatar`
+- **Response:**
+  ```json
+  {
+    "message": "Avatar uploaded and updated successfully",
+    "user": {
       "id": 1,
-      "title": "Jane's Prayer",
-      "content": "This is Jane's prayer content.",
-      "created_at": "2024-03-07T12:00:00Z"
+      "avatar": "https://withelim.com/media/avatar_1.jpg"
     }
-  ]
-}
+  }
+  ```
 
-📖 Bible Verses
+#### 6️⃣ Get Public Profile
+- **Endpoint:** `GET /api/auth/public/:id`
+- **Response:**
+  ```json
+  {
+    "user": {
+      "id": 2,
+      "username": "jane_doe",
+      "email": "jane@example.com",
+      "avatar": "https://withelim.com/media/jane-avatar.png",
+      "language": "t_cn"
+    },
+    "publicPrayers": [
+      {
+        "id": 1,
+        "title": "Jane's Prayer",
+        "content": "This is Jane's prayer content.",
+        "created_at": "2024-03-07T12:00:00Z"
+      }
+    ]
+  }
+  ```
 
-1️⃣ Get Bible Verses
+### 📖 Bible Verses
 
-Endpoint: GET /api/bible
+#### 1️⃣ Get Bible Verses
+- **Endpoint:** `GET /api/bible`
+- **Response:**
+  ```json
+  {
+    "book": 1,
+    "chapter": 1,
+    "version": "t_kjv",
+    "verses": [
+      { "verse": 1, "text": "In the beginning God created the heaven and the earth." }
+    ]
+  }
+  ```
 
-Response:
+#### 2️⃣ Search Bible Verses
+- **Endpoint:** `GET /api/bible/English/search?word=noah`
+- **Response:**
+  ```json
+  {
+    "verses": [
+      { "version": "t_kjv", "b": 1, "c": 6, "v": 8, "t": "But Noah found grace in the eyes of the LORD." }
+    ]
+  }
+  ```
 
-{
-  "book": 1,
-  "chapter": 1,
-  "version": "t_kjv",
-  "verses": [
-    { "verse": 1, "text": "In the beginning God created the heaven and the earth." }
-  ]
-}
+### 🙏 Prayer Management
 
-2️⃣ Search Bible Verses
+#### 1️⃣ Create Prayer
+- **Endpoint:** `POST /api/prayers`
+- **Response:**
+  ```json
+  {
+    "message": "Prayer submitted",
+    "prayerId": 1
+  }
+  ```
 
-Endpoint: GET /api/bible/English/search?word=noah
+#### 2️⃣ Get Public Prayers
+- **Endpoint:** `GET /api/prayers/public`
+- **Response:**
+  ```json
+  {
+    "prayers": [
+      {
+        "id": 1,
+        "title": "My Prayer",
+        "content": "This is my prayer content."
+      }
+    ]
+  }
+  ```
 
-Response:
+### 🤝 Friendship System
 
-{
-  "verses": [
-    { "version": "t_kjv", "b": 1, "c": 6, "v": 8, "t": "But Noah found grace in the eyes of the LORD." }
-  ]
-}
+#### 1️⃣ Send Friend Request
+- **Endpoint:** `POST /api/friends/add`
+- **Response:**
+  ```json
+  {
+    "message": "Friend request sent!"
+  }
+  ```
 
-🙏 Prayer Management
+#### 2️⃣ Get Friends List
+- **Endpoint:** `GET /api/friends/list`
+- **Response:**
+  ```json
+  {
+    "friends": [{ "id": 2, "username": "jane_doe" }]
+  }
+  ```
 
-1️⃣ Create Prayer
+#### 3️⃣ Accept or Reject Friend Request
+- **Endpoint:** `POST /api/friends/respond`
+- **Request:**
+  ```json
+  {
+    "friendshipId": 1,
+    "status": "accepted"
+  }
+  ```
+- **Response:**
+  ```json
+  {
+    "message": "Friend request accepted!"
+  }
+  ```
 
-Endpoint: POST /api/prayers
-
-Response:
-
-{
-  "message": "Prayer submitted",
-  "prayerId": 1
-}
-
-2️⃣ Get Public Prayers
-
-Endpoint: GET /api/prayers/public
-
-Response:
-
-{
-  "prayers": [
-    {
-      "id": 1,
-      "title": "My Prayer",
-      "content": "This is my prayer content."
-    }
-  ]
-}
-
-🤝 Friendship System
-
-1️⃣ Send Friend Request
-
-Endpoint: POST /api/friends/add
-
-Response:
-
-{
-  "message": "Friend request sent!"
-}
-
-2️⃣ Get Friends List
-
-Endpoint: GET /api/friends/list
-
-Response:
-
-{
-  "friends": [{ "id": 2, "username": "jane_doe" }]
-}
-
-3️⃣ Accept or Reject Friend Request
-
-Endpoint: POST /api/friends/respond
-
-Request:
-
-{
-  "friendshipId": 1,
-  "status": "accepted"
-}
-
-Response:
-
-{
-  "message": "Friend request accepted!"
-}
 
 
 

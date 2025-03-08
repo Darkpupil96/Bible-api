@@ -208,6 +208,93 @@ router.get("/mine", authMiddleware, async (req, res) => {
         res.status(500).json({ error: "Server error" });
     }
 });
+
+// 编辑自己的祷文
+router.put("/:prayerId", authMiddleware, async (req, res) => {
+    const connection = await bibleDB.getConnection();
+    try {
+        const { prayerId } = req.params;
+        const userId = req.user.id;
+        const { title, content, is_private, verses } = req.body;
+
+        // 检查必填字段
+        if (!title || !content || typeof is_private === "undefined" || !Array.isArray(verses)) {
+            return res.status(400).json({ error: "Missing required parameters" });
+        }
+
+        await connection.beginTransaction();
+
+        // 检查该祷文是否存在且归当前用户所有
+        const [rows] = await connection.execute("SELECT userId FROM prayers WHERE id = ?", [prayerId]);
+        if (rows.length === 0) {
+            await connection.rollback();
+            return res.status(404).json({ error: "Prayer not found" });
+        }
+        if (rows[0].userId !== userId) {
+            await connection.rollback();
+            return res.status(403).json({ error: "Unauthorized: You can only edit your own prayer" });
+        }
+
+        // 更新祷文基本信息
+        const sqlUpdatePrayer = "UPDATE prayers SET title = ?, content = ?, is_private = ? WHERE id = ?";
+        await connection.execute(sqlUpdatePrayer, [title, content, is_private ? 1 : 0, prayerId]);
+
+        // 删除原有关联经文
+        await connection.execute("DELETE FROM prayer_bible WHERE prayerId = ?", [prayerId]);
+
+        // 插入新的关联经文（如果有）
+        if (verses.length > 0) {
+            const values = verses.map(v => `(${prayerId}, '${v.version}', ${v.b}, ${v.c}, ${v.v})`).join(", ");
+            const sqlBible = `INSERT INTO prayer_bible (prayerId, version, b, c, v) VALUES ${values}`;
+            await connection.execute(sqlBible);
+        }
+
+        await connection.commit();
+        res.json({ message: "Prayer updated successfully" });
+    } catch (error) {
+        await connection.rollback();
+        console.error("❌ Error updating prayer:", error);
+        res.status(500).json({ error: "Server error" });
+    } finally {
+        connection.release();
+    }
+});
+
+// 删除自己的祷文
+router.delete("/:prayerId", authMiddleware, async (req, res) => {
+    const connection = await bibleDB.getConnection();
+    try {
+        const { prayerId } = req.params;
+        const userId = req.user.id;
+
+        await connection.beginTransaction();
+
+        // 检查该祷文是否存在且归当前用户所有
+        const [rows] = await connection.execute("SELECT userId FROM prayers WHERE id = ?", [prayerId]);
+        if (rows.length === 0) {
+            await connection.rollback();
+            return res.status(404).json({ error: "Prayer not found" });
+        }
+        if (rows[0].userId !== userId) {
+            await connection.rollback();
+            return res.status(403).json({ error: "Unauthorized: You can only delete your own prayer" });
+        }
+
+        // 先删除关联经文，再删除祷文
+        await connection.execute("DELETE FROM prayer_bible WHERE prayerId = ?", [prayerId]);
+        await connection.execute("DELETE FROM prayers WHERE id = ?", [prayerId]);
+
+        await connection.commit();
+        res.json({ message: "Prayer deleted successfully" });
+    } catch (error) {
+        await connection.rollback();
+        console.error("❌ Error deleting prayer:", error);
+        res.status(500).json({ error: "Server error" });
+    } finally {
+        connection.release();
+    }
+});
+
 //  给`prayer`进行点赞
 router.post("/:prayerId/like", authMiddleware, async (req, res) => {
     try {
@@ -269,6 +356,32 @@ router.get("/:prayerId/likes", async (req, res) => {
         res.status(500).json({ error: "Server error" });
     }
 });
+
+// 判断指定的用户是否点赞了指定的 prayer
+router.get("/:prayerId/isliked/:userId", async (req, res) => {
+    try {
+      const { prayerId, userId } = req.params;
+      
+      // 可选：检查参数是否为数字
+      if (isNaN(prayerId) || isNaN(userId)) {
+        return res.status(400).json({ error: "Invalid parameters" });
+      }
+  
+      // 查询指定用户是否已点赞该祷文
+      const [rows] = await bibleDB.execute(
+        "SELECT COUNT(*) AS count FROM prayer_likes WHERE prayer_id = ? AND user_id = ?",
+        [prayerId, userId]
+      );
+  
+      // 如果 count > 0 则表示用户已经点赞了
+      const liked = rows[0].count > 0;
+      res.json({ liked });
+    } catch (error) {
+      console.error("❌ Error checking like status:", error);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+  
 // 发表`prayer`的评论
 router.post("/:prayerId/comment", authMiddleware, async (req, res) => {
     try {
@@ -310,6 +423,126 @@ router.get("/:prayerId/comments", async (req, res) => {
     } catch (error) {
         console.error("❌ Error fetching comments:", error);
         res.status(500).json({ error: "Server error" });
+    }
+});
+// 编辑评论：只有评论的作者可以编辑评论
+router.put("/:prayerId/comment/:commentId", authMiddleware, async (req, res) => {
+    try {
+        const { prayerId, commentId } = req.params;
+        const userId = req.user.id;
+        const { content } = req.body;
+
+        if (!content) {
+            return res.status(400).json({ error: "评论内容不能为空" });
+        }
+
+        // 获取评论信息
+        const [rows] = await bibleDB.execute(
+            "SELECT * FROM prayer_comments WHERE id = ? AND prayer_id = ?",
+            [commentId, prayerId]
+        );
+        if (rows.length === 0) {
+            return res.status(404).json({ error: "未找到对应评论" });
+        }
+        const comment = rows[0];
+
+        // 检查当前用户是否为评论作者（通过 user_id 比较）
+        if (comment.user_id !== userId) {
+            return res.status(403).json({ error: "您只能编辑自己的评论" });
+        }
+
+        // 更新评论内容
+        await bibleDB.execute(
+            "UPDATE prayer_comments SET content = ? WHERE id = ?",
+            [content, commentId]
+        );
+        res.json({ message: "评论更新成功" });
+    } catch (error) {
+        console.error("❌ Error updating comment:", error);
+        res.status(500).json({ error: "服务器错误" });
+    }
+});
+
+// 删除评论：评论作者可以删除自己的评论；同时如果登录用户是该祷文的作者，可以删除该祷文下的任意评论
+router.delete("/:prayerId/comment/:commentId", authMiddleware, async (req, res) => {
+    try {
+        const { prayerId, commentId } = req.params;
+        const userId = req.user.id;
+
+        // 获取评论信息
+        const [commentRows] = await bibleDB.execute(
+            "SELECT * FROM prayer_comments WHERE id = ? AND prayer_id = ?",
+            [commentId, prayerId]
+        );
+        if (commentRows.length === 0) {
+            return res.status(404).json({ error: "未找到对应评论" });
+        }
+        const comment = commentRows[0];
+
+        // 初步判断：如果评论的作者为当前用户，则允许删除
+        let authorized = (comment.user_id === userId);
+
+        // 如果当前用户不是评论作者，进一步检查当前用户是否为该祷文的作者
+        if (!authorized) {
+            const [prayerRows] = await bibleDB.execute(
+                "SELECT userId FROM prayers WHERE id = ?",
+                [prayerId]
+            );
+            if (prayerRows.length === 0) {
+                return res.status(404).json({ error: "未找到对应祷文" });
+            }
+            if (prayerRows[0].userId === userId) {
+                authorized = true;
+            }
+        }
+
+        if (!authorized) {
+            return res.status(403).json({ error: "您无权删除该评论" });
+        }
+
+        // 删除评论
+        await bibleDB.execute("DELETE FROM prayer_comments WHERE id = ?", [commentId]);
+        res.json({ message: "评论删除成功" });
+    } catch (error) {
+        console.error("❌ Error deleting comment:", error);
+        res.status(500).json({ error: "服务器错误" });
+    }
+});
+// 判断评论是否可以删除的 API（仅限登录用户使用）
+router.get("/:prayerId/comment/:commentId/candelete", authMiddleware, async (req, res) => {
+    const currentUserId = req.user.id;
+    const { prayerId, commentId } = req.params;
+
+    try {
+        // 获取评论记录
+        const [commentRows] = await bibleDB.execute(
+            "SELECT * FROM prayer_comments WHERE id = ? AND prayer_id = ?",
+            [commentId, prayerId]
+        );
+        if (commentRows.length === 0) {
+            return res.json({ canDelete: false });
+        }
+        const comment = commentRows[0];
+
+        // 如果当前用户是评论的作者，则允许删除
+        if (comment.user_id === currentUserId) {
+            return res.json({ canDelete: true });
+        }
+
+        // 如果当前用户是该祷文的作者，则允许删除所有评论
+        const [prayerRows] = await bibleDB.execute(
+            "SELECT userId FROM prayers WHERE id = ?",
+            [prayerId]
+        );
+        if (prayerRows.length > 0 && prayerRows[0].userId === currentUserId) {
+            return res.json({ canDelete: true });
+        }
+
+        // 其他情况返回 false
+        return res.json({ canDelete: false });
+    } catch (error) {
+        console.error("❌ Error checking comment deletion permission:", error);
+        res.status(500).json({ error: "服务器错误" });
     }
 });
 

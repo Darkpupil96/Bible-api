@@ -113,14 +113,31 @@ router.get("/me", authMiddleware, async (req, res) => {
     }
 });
 
-// ✅ 更新用户信息 API（头像 & 语言）
+// ✅ 更新用户信息 API（用户名，邮箱，密码，头像 & 语言）
 router.post("/update", authMiddleware, async (req, res) => {
     try {
-        const { username, avatar, language } = req.body;
+        const { username, avatar, language, email, newPassword, oldPassword } = req.body;
 
         // 如果没有提供任何要更新的字段，返回错误
-        if (!username && !avatar && !language) {
+        if (!username && !avatar && !language && !email && !newPassword) {
             return res.status(400).json({ error: "At least one field is required for update" });
+        }
+
+        // 如果请求更新邮箱或密码，必须提供原密码
+        if ((email || newPassword) && !oldPassword) {
+            return res.status(400).json({ error: "Original password is required to update email or password" });
+        }
+
+        // 如果需要更新敏感字段，先验证原密码
+        if (email || newPassword) {
+            const [userRows] = await bibleDB.execute("SELECT password FROM users WHERE id = ?", [req.user.id]);
+            if (userRows.length === 0) {
+                return res.status(404).json({ error: "User not found" });
+            }
+            const isPasswordValid = await bcrypt.compare(oldPassword, userRows[0].password);
+            if (!isPasswordValid) {
+                return res.status(400).json({ error: "Incorrect original password" });
+            }
         }
 
         let query = "UPDATE users SET ";
@@ -138,21 +155,34 @@ router.post("/update", authMiddleware, async (req, res) => {
             query += "language = ?, ";
             params.push(language);
         }
+        if (email) {
+            // 检查邮箱是否已被其他用户注册
+            const [existingEmails] = await bibleDB.execute("SELECT * FROM users WHERE email = ? AND id <> ?", [email, req.user.id]);
+            if (existingEmails.length > 0) {
+                return res.status(400).json({ error: "Email is already registered" });
+            }
+            query += "email = ?, ";
+            params.push(email);
+        }
+        if (newPassword) {
+            const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+            query += "password = ?, ";
+            params.push(hashedNewPassword);
+        }
 
-        // 移除 SQL 末尾的 `,` 并加上 `WHERE`
+        // 移除末尾多余的 `, ` 并添加 WHERE 子句
         query = query.slice(0, -2) + " WHERE id = ?";
         params.push(req.user.id);
 
         await bibleDB.execute(query, params);
 
-        // 获取更新后的用户信息
+        // 获取更新后的用户信息（不包含密码）
         const [updatedUser] = await bibleDB.execute(
             "SELECT id, username, email, avatar, language FROM users WHERE id = ?",
             [req.user.id]
         );
 
         res.json({ message: "Profile updated successfully", user: updatedUser[0] });
-
     } catch (error) {
         console.error("❌ Error updating user:", error);
         res.status(500).json({ error: "Server error" });
